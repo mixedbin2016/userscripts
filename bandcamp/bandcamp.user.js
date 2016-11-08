@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name        Bandcamp Download Link
+// @name        Bandcamp Download Button
 // @namespace   bandcamp.com
-// @description Add a download link to bandcamp.com tracks
+// @description Add a download button to bandcamp.com tracks
 // @include     *.bandcamp.com*
-// @version     1
+// @version     1.0.1
 // @grant       none
 // ==/UserScript==
 
@@ -18,6 +18,9 @@ var check_include = function(incl){
 
 var BandcampAlbum = function(albumdata){
     var Track = function(track, number, count){
+        if(!track || !track.file){
+            return false;
+        }
         var url = window.location.protocol+track.file['mp3-128'];
         var title = track.title;
         var slug = title.toLowerCase().replace(/[^a-z0-9-_]/g, '-')
@@ -51,7 +54,7 @@ var BandcampAlbum = function(albumdata){
         for(var i=0; i<albumdata.trackinfo.length; i++){
             var tr = albumdata.trackinfo[i];
             var track = new Track(tr, (i+1), albumdata.trackinfo.length);
-            tracks.push(track);
+            if(track){ tracks.push(track); }
         }
         return {
             'artist': artist,
@@ -71,6 +74,7 @@ var BandcampAlbum = function(albumdata){
 
 var add_download_button = function(album){
     var create_download_link = function(track){
+        if(!track || !track.url){ return false; }
         var a = document.createElement('a');
         a.setAttribute('href', track.url);
         a.setAttribute('download', track.file);
@@ -81,9 +85,11 @@ var add_download_button = function(album){
     for(var i=0; i<album.tracks.length; i++){
         var tr = album.tracks[i];
         var a = create_download_link(tr);
-        var elem = jQuery('.track_row_view:nth-child('+(i+1)+')').
+        if(a){
+            var elem = jQuery('.track_row_view:nth-child('+(i+1)+')').
             find('td:last-child');
-        elem.append(a);
+            elem.append(a);
+        }
     }
 };
 
@@ -91,13 +97,15 @@ var create_download_script = function(album){
     var s = '#!/bin/bash \n';
     for(var i=0; i<album.tracks.length; i++){
         var tr = album.tracks[i];
-        tr.title = tr.title.replace("'", "`");
-        album.artist = album.artist.replace("'", "`");
-        album.album = album.album.replace("'", "`");
-        s += '# '+tr.file+'\n';
-        s += "curl --insecure -L -o '"+tr.file+"' '"+tr.url+"'; \n";
-        s += "id3v2 --artist '"+album.artist+"' --album '"+album.album+"' "+
+        if(tr && tr.title){
+            tr.title = tr.title.replace("'", "`");
+            album.artist = album.artist.replace("'", "`");
+            album.album = album.album.replace("'", "`");
+            s += '# '+tr.file+'\n';
+            s += "curl --insecure -L -o '"+tr.file+"' '"+tr.url+"'; \n";
+            s += "id3v2 --artist '"+album.artist+"' --album '"+album.album+"' "+
                 "--song '"+tr.title+"' --track "+(i+1)+" '"+tr.file+"'; \n";
+        }
     }
     return s;
 };
@@ -113,7 +121,7 @@ if(typeof window.TralbumData!=='object' || window.TralbumData===null){
 jQuery(document).ready(function(){
     var bcAlbum = new BandcampAlbum(window.TralbumData).getObject();
     add_download_button(bcAlbum);
-    console.log(create_download_script(bcAlbum));
+    try{ console.log(create_download_script(bcAlbum)); }catch(e){}
 });
 
 })();
